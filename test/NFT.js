@@ -146,4 +146,50 @@ describe('Token', () => {
         expect(tokenIds[2].toString()).to.equal('3')
       })
   })
+
+  describe('Withdrawing', () => {
+    let amount, transaction, result, balanceBefore
+
+    describe('Success', () => {
+      
+      beforeEach(async () => {
+        const releaseDate = Date.now().toString().slice(0, 10)
+        const NFT = await ethers.getContractFactory('NFT')
+        nft = await NFT.deploy('Dapp Punks', 'DP', cost, maxSupply, releaseDate, BASE_URI)
+        
+        transaction = await nft.connect(minter).mint(1, {value: cost })
+        result = await transaction.wait()
+
+        balanceBefore = await ethers.provider.getBalance(deployer.address)
+        transaction = await nft.connect(deployer).withdraw()
+        result = await transaction.wait()
+      })
+
+      it('Deducts the Contract Balance', async () => {
+        expect(await ethers.provider.getBalance(nft.address)).to.equal(0)
+      })
+
+      it('Sends Funds to the Owner', async () => {
+        expect(await ethers.provider.getBalance(deployer.address)).to.be.greaterThan(balanceBefore)
+      })
+
+      it('Emits a Withdraw Event', async () => {
+        await expect(transaction).to.emit(nft, 'Withdraw').withArgs(cost, deployer.address)
+      })
+
+    })
+
+    describe('Failure', () => {
+      beforeEach(async () => {
+        const releaseDate = Date.now().toString().slice(0, 10)
+        const NFT = await ethers.getContractFactory('NFT')
+        nft = await NFT.deploy('Dapp Punks', 'DP', cost, maxSupply, releaseDate, BASE_URI)
+        nft.connect(minter).mint(1, {value: cost })
+      })
+
+      it('Prevents Non-owner From Withdrawing', async () => {
+        await expect(nft.connect(minter).withdraw()).to.be.reverted
+      })
+    })
+  })
 })
